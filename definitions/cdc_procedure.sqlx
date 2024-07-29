@@ -1,91 +1,135 @@
-config { type: "operations",
-        tags: ["SP"]
- }
+config {
+    type: "operations",
+    tags: ["SP"]
+}
 
-create or replace procedure `pso-gdc-japac-wedevelop-df.dataform.sp_cdc`() 
-BEGIN 
-
-create temp table cdc_table
-as 
-select *,
-       (CASE 
-         WHEN mod_rec.country is null THEN 'Insert' 
-         WHEN new_mod_rec.country_new is null THEN 'Delete' 
-         WHEN mod_rec.country = new_mod_rec.country_new THEN 'Update' 
-         else 'Undefined'
-       END) as Operation_flag
-from 
-
-  (
-  -----------------Records modified in Source ----------------------
-  select country,hos,hos_nm,hog,hog_nm
-  from
-      (
-      select country,hos,hos_nm,hog,hog_nm
-      from dataform.hoc_cdc
-      except distinct
-      select country,hos,hos_nm,hog,hog_nm
-      from dataform.hoc_gsheet
-      ) 
- ) as mod_rec
- 
- FULL JOIN 
- 
- 
- (
-  -----------------New/Modified Records in Source ----------------------
-  select  country as country_new,hos as hos_new,hos_nm as hos_nm_new,hog as hog_new,hog_nm as hog_nm_new
-  from 
-    (
-    select country,hos,hos_nm,hog,hog_nm
-    from dataform.hoc_gsheet
-    except distinct
-    select country,hos,hos_nm,hog,hog_nm
-    from dataform.hoc_cdc
-    ) 
-  ) as new_mod_rec
-  
-  
-  ON new_mod_rec.country_new = mod_rec.country;
- 
-#Insert records  
- insert into dataform.hoc_cdc 
- select country_new as country, hos_new as hos, hos_nm_new as hos_nm, 
- hog_new as hog, hog_nm_new as hog_nm, 
-current_timestamp as created_dt,
-current_timestamp as last_updated_dt, 
-'Stored Proc' as last_updated_by
- from cdc_table where operation_flag='Insert';
-  
-#Delete records
-delete from dataform.hoc_cdc 
-where country 
-in (select country from cdc_table where operation_flag='Delete');
-
-#Update records
-Update dataform.hoc_cdc hoc_cdc 
-set hos = hos_new,
-    hos_nm = hos_nm_new, 
-    hog = hog_new, 
-    hog_nm = hog_nm_new,
-    last_updated_dt=current_timestamp,
-    last_updated_by = 'Stored Proc'
-    
-from cdc_table tmp
-where tmp.operation_flag = 'Update' and 
-hoc_cdc.country = tmp.country;
-
-#Update run_control_table
-insert into dataform.run_control_tbl
-select 'hoc_cdc' as tbl_nm, 
-       'hoc_gsheet' as src_tbl_nm,
-       sum(if(operation_flag='Insert',1,0)) as rec_inserted,
-       sum(if(operation_flag='Delete',1,0)) as rec_deleted,
-       sum(if(operation_flag='Update',1,0)) as rec_updated,
-       current_timestamp as run_dt
-       from cdc_table;
-        
-
-
-drop  table cdc_table;
-END;
+CREATE OR REPLACE PROCEDURE
+  `pso-gdc-japac-wedevelop-df.dataform.sp_cdc`()
+BEGIN
+  CREATE TEMP TABLE cdc_table AS
+SELECT
+  *,
+  (CASE
+      WHEN mod_rec.country IS NULL THEN 'Insert'
+      WHEN new_mod_rec.country_new IS NULL THEN 'Delete'
+      WHEN mod_rec.country = new_mod_rec.country_new THEN 'Update'
+      ELSE 'Undefined'
+  END
+    ) AS Operation_flag
+FROM (
+    -----------------Records modified in Source ----------------------
+  SELECT
+    country,
+    hos,
+    hos_nm,
+    hog,
+    hog_nm
+  FROM (
+    SELECT
+      country,
+      hos,
+      hos_nm,
+      hog,
+      hog_nm
+    FROM
+      dataform.hoc_cdc EXCEPT DISTINCT
+    SELECT
+      country,
+      hos,
+      hos_nm,
+      hog,
+      hog_nm
+    FROM
+      dataform.hoc_gsheet ) ) AS mod_rec
+FULL JOIN (
+    -----------------New/Modified Records in Source ----------------------
+  SELECT
+    country AS country_new,
+    hos AS hos_new,
+    hos_nm AS hos_nm_new,
+    hog AS hog_new,
+    hog_nm AS hog_nm_new
+  FROM (
+    SELECT
+      country,
+      hos,
+      hos_nm,
+      hog,
+      hog_nm
+    FROM
+      dataform.hoc_gsheet EXCEPT DISTINCT
+    SELECT
+      country,
+      hos,
+      hos_nm,
+      hog,
+      hog_nm
+    FROM
+      dataform.hoc_cdc ) ) AS new_mod_rec
+ON
+  new_mod_rec.country_new = mod_rec.country;
+  #Insert records
+INSERT INTO
+  dataform.hoc_cdc
+SELECT
+  country_new AS country,
+  hos_new AS hos,
+  hos_nm_new AS hos_nm,
+  hog_new AS hog,
+  hog_nm_new AS hog_nm,
+  current_timestamp AS created_dt,
+  current_timestamp AS last_updated_dt,
+  'Stored Proc' AS last_updated_by
+FROM
+  cdc_table
+WHERE
+  operation_flag='Insert';
+  #Delete records
+DELETE
+FROM
+  dataform.hoc_cdc
+WHERE
+  country IN (
+  SELECT
+    country
+  FROM
+    cdc_table
+  WHERE
+    operation_flag='Delete');
+  #Update records
+UPDATE
+  dataform.hoc_cdc hoc_cdc
+SET
+  hos = hos_new,
+  hos_nm = hos_nm_new,
+  hog = hog_new,
+  hog_nm = hog_nm_new,
+  last_updated_dt=current_timestamp,
+  last_updated_by = 'Stored Proc'
+FROM
+  cdc_table tmp
+WHERE
+  tmp.operation_flag = 'Update'
+  AND hoc_cdc.country = tmp.country;
+  #Update run_control_table
+INSERT INTO
+  dataform.run_control_tbl
+SELECT
+  'hoc_cdc' AS tbl_nm,
+  'hoc_gsheet' AS src_tbl_nm,
+  SUM(
+  IF
+    (operation_flag='Insert',1,0)) AS rec_inserted,
+  SUM(
+  IF
+    (operation_flag='Delete',1,0)) AS rec_deleted,
+  SUM(
+  IF
+    (operation_flag='Update',1,0)) AS rec_updated,
+  current_timestamp AS run_dt
+FROM
+  cdc_table;
+DROP TABLE
+  cdc_table;
+END
+  ;
