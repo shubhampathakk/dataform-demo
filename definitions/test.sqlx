@@ -1,7 +1,7 @@
--- config {
-  --     type: "operations",
-  --     tags: ["test_tag"]
-  -- }
+config {
+      type: "operations",
+      tags: ["test_tag"]
+  }
 INSERT INTO
   transformers-200.testing.testing_table
 SELECT
