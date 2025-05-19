@@ -1,0 +1,8 @@
+config {
+      type: "operations",
+      tags: ["test_tag"]
+  }
+INSERT INTO
+  transformers-200.testing.testing_table
+SELECT
+  'Shubham Pathak' from transformers-200.testing.blobk_test
